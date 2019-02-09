@@ -15,5 +15,5 @@ class EnvConfig(object):
         return dotenv.dotenv_values()
 
 
-def pack_register_hs(pm: PluginManager):
+def pack_register(pm: PluginManager):
     pm.register(EnvConfig())

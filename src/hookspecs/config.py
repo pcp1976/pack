@@ -6,19 +6,27 @@ hs_config = HookspecMarker("pack")
 
 class ConfigMarkers:
     @hs_config
-    def inject_config(self, config):
+    def config_inject(self, config):
         """
         :param config: the config to inject
         """
         pass
 
     @hs_config
-    def broadcast_config(self):
+    def config_broadcast(self):
         """
         :return:
         """
         pass
 
+    @hs_config
+    def config_item_set(self, item, value):
+        pass
 
-def pack_register_hs(pm: PluginManager):
+    @hs_config
+    def config_item_get(self, item):
+        pass
+
+
+def pack_register(pm: PluginManager):
     pm.add_hookspecs(ConfigMarkers())

@@ -4,11 +4,10 @@ hs_config_impl = HookimplMarker("pack")
 
 
 class PTwo(object):
-
     @hs_config_impl
-    def inject_config(self, config):
+    def config_inject(self, config):
         print(f"{self.__class__}: {config}")
 
 
-def pack_register_hs(pm: PluginManager):
+def pack_register(pm: PluginManager):
     pm.register(PTwo())
