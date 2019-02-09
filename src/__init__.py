@@ -19,8 +19,6 @@ def connect_hooks():
     for importer, modname, ispkg in pkgutil.walk_packages(path="./hookspecs"):
         if hasattr(sys.modules[modname], "pack_register"):
             sys.modules[modname].pack_register(pm)
-        # if hasattr(sys.modules[modname], "pack_register_im"):
-        #     sys.modules[modname].pack_register_im(pm)
 
 
 def link():
