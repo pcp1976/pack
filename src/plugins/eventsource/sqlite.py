@@ -1,15 +1,61 @@
 from pluggy import HookimplMarker, PluginManager
 from configobj import ConfigObj
+import sqlite3
 
 eventsource = HookimplMarker("pack")
 
 
-class EventSourceMemory:
+def hello(event_type, event_data, event_metada):
+    print(f"Hello {event_type}, {event_data}, {event_metada}")
+
+
+# TODO
+"""
+Triggers are persistent - need to choose behaviour on startup
+- probably should remove as potentially using different composition of app on restart
+Need to choose how to map tables and callbacks to streams, subscriptions, and event handlers
+
+drop trigger https://www.sqlite.org/lang_droptrigger.html
+select triggers https://stackoverflow.com/questions/18655057/how-can-i-list-all-the-triggers-of-a-database-in-sqlite
+
+looks as if triggers are stored in a central location, so the name will need to be a combination of
+the stream name, the subscription name, and possibly the function name to avoid collisions
+"""
+# # con = sqlite3.connect(":memory:") can use memory
+# con = sqlite3.connect("test.db")
+# con.create_function("hello", 3, hello)  # function alias, number of args, function
+# cur = con.cursor()
+# # only if no db
+# cur.execute(
+#     "".join(
+#         [
+#             "CREATE TABLE t ",
+#             "(event_id INTEGER PRIMARY KEY AUTOINCREMENT, ",
+#             "event_type TEXT NOT NULL, ",
+#             "event_data TEXT NOT NULL, ",
+#             "event_metadata text NOT NULL);",
+#         ]
+#     )
+# )
+# # only if !exists(TRIGGER)
+# cur.execute(
+#     "CREATE TRIGGER xx AFTER INSERT ON t BEGIN SELECT hello(NEW.event_type, NEW.event_data, NEW.event_metadata); END;"
+# )
+# # can add multiple triggers on table
+# cur.execute(
+#     "CREATE TRIGGER yy AFTER INSERT ON t BEGIN SELECT hello(NEW.event_type, NEW.event_data, NEW.event_metadata); END;"
+# )
+# cur.execute(
+#     "INSERT INTO t (event_type, event_data, event_metadata) VALUES('{abc}', '{123}', '{£$%}')"
+# )
+
+
+class EventSourceSqlite:
     """
-    Simple, volatile event source using dicts
+    Fairly simple persistent event source using sqlite3
     """
 
-    name = "eventsource_memory"
+    name = "eventsource_sqlite"
 
     def __init__(self):
         self.streams = {}
@@ -41,7 +87,7 @@ class EventSourceMemory:
     def config_inject(self, config):
         fresh_config = self._config_mung(config)
         if not fresh_config["eventsource"]["type"] == self.name:
-            print("unwanted; die")
+            print(f"{self.name} unwanted; die")
             # TODO object should be shunted out of scope and be GC'd
         else:
             self.apply_config(fresh_config)
@@ -131,4 +177,4 @@ class EventSourceMemory:
 
 
 def pack_register(pm: PluginManager):
-    pm.register(EventSourceMemory())
+    pm.register(EventSourceSqlite())
