@@ -12,7 +12,7 @@ def main(args):
     connect_hooks()
     link()
     pm.hook.config_inject(config=pm.hook.broadcast_config())
-    pm.hook.config_item_set(item="eventsource", value="eventsource_memory")
+    pm.hook.config_item_set(item="eventsource", value={"type": "eventsource_memory"})
 
 
 def connect_hooks():

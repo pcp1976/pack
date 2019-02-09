@@ -40,7 +40,7 @@ class EventSourceMemory:
     @eventsource
     def config_inject(self, config):
         fresh_config = self._config_mung(config)
-        if not fresh_config["eventsource"] == self.name:
+        if not fresh_config["eventsource"]["type"] == self.name:
             print("unwanted; die")
             # TODO object should be shunted out of scope and be GC'd
         else:

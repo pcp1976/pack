@@ -16,7 +16,7 @@ class EnvConfig:
 
     @hs_config_impl
     def config_item_set(self, item, value):
-        self.configob[item] = value
+        self.configob[item].update(value)
         self.configob.write()
 
     @hs_config_impl
