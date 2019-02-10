@@ -2,7 +2,8 @@ import sqlite3
 from sqlite3.dbapi2 import OperationalError, IntegrityError
 import json
 from api.eventsource import Event
-from time import sleep
+import uuid
+import datetime
 
 # TODO
 """
@@ -55,6 +56,9 @@ class TableAdapter:
     def __init__(self, file_path):
         self.con = sqlite3.connect(file_path)
 
+    def delete_subscription(self, subscription_name):
+        raise NotImplementedError
+
     @staticmethod
     def stream_name(stream_name):
         return f"stream_{stream_name}"
@@ -65,7 +69,7 @@ class TableAdapter:
             "".join(
                 [
                     f"CREATE TABLE {self.stream_name(stream_name)} ",
-                    "(id INTEGER PRIMARY KEY AUTOINCREMENT, ",
+                    "(id TEXT PRIMARY KEY, ",
                     "type TEXT NOT NULL, ",
                     "data TEXT NOT NULL, ",
                     "metadata text NOT NULL, ",
@@ -78,11 +82,12 @@ class TableAdapter:
     def register_handler(self, stream_name, subscription_name, event_handler):
         f_name = f"{stream_name}_{subscription_name}_{event_handler.__name__}"
         cur = self.con.cursor()
-        self.con.create_function(f_name, 4, event_handler)
+        self.con.create_function(f_name, 5, event_handler)
         try:
-            cur.execute(
-                f"CREATE TRIGGER {f_name} AFTER INSERT ON stream_{stream_name} BEGIN SELECT {f_name}(NEW.type, NEW.data, NEW.metadata, NEW.raised_time); END;"
-            )
+            cur.execute("".join([
+                f"CREATE TRIGGER {f_name} AFTER INSERT ON stream_{stream_name} ",
+                f"BEGIN SELECT {f_name}(NEW.id, NEW.type, NEW.data, NEW.metadata, NEW.raised_time); END;"
+            ]))
             self.con.commit()
         except OperationalError as e:
             print(e)
@@ -111,14 +116,16 @@ class TableAdapter:
 
     def append_event(self, stream_name, event: Event):
         cur = self.con.cursor()
+        # raised_time set here - when the event is raised onto its destination stream
         sql_str = "".join(
             [
-                f"INSERT INTO {self.stream_name(stream_name)} (type, data, metadata, raised_time) ",
+                f"INSERT INTO {self.stream_name(stream_name)} (id, type, data, metadata, raised_time) ",
                 f"VALUES (",
+                f"'{str(uuid.uuid4())}', "
                 f"'{event.type}', ",
                 f"'{json.dumps(event.data)}', ",
                 f"'{json.dumps(event.metadata)}', ",
-                f"'{event.raised_time}');",
+                f"'{datetime.datetime.now()}');",
             ]
         )
         cur.execute(sql_str)

@@ -5,7 +5,7 @@ import os
 
 from api.plugin import Plugin
 from api.eventsource import Event, EventSource
-from plugins.eventsource.sqlite.table_adapter import TableAdapter
+from .table_adapter import TableAdapter
 
 eventsource = HookimplMarker("pack")
 
@@ -96,6 +96,7 @@ class EventSourceSqlite(EventSource, Plugin):
         :return: None
         """
         if subscription_name in self.subscriptions[stream_name]:
+            self.table_adapter.delete_subscription(subscription_name)
             self.subscriptions[stream_name].remove(subscription_name)
 
     def create_stream(self, stream_name):
@@ -118,7 +119,7 @@ class EventSourceSqlite(EventSource, Plugin):
 
     @eventsource
     def raise_event(self, stream_name: str, event: Event):
-        self.create_stream(stream_name)
+        self.create_stream(stream_name)  # ensure stream exists
         self.table_adapter.append_event(stream_name, event)
 
     @eventsource

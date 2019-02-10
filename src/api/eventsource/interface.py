@@ -6,12 +6,11 @@ import datetime
 class Event:
     def __init__(self, **kwargs):
         self.data: dict = None
-        self.id: str = None
+        self._id: str = None
         self.metadata: dict = None
         self.type: str = None
-        self._raised_time = str(datetime.datetime.now())
-        for k, v in kwargs:
-            self.__dict__.update({k, v})
+        self._raised_time = None
+        self.__dict__.update(kwargs)
 
     @property
     def raised_time(self):
@@ -19,6 +18,14 @@ class Event:
 
     @raised_time.setter
     def raised_time(self, value):
+        pass
+
+    @property
+    def id(self):
+        return self._id
+
+    @id.setter
+    def id(self, value):
         pass
 
 
