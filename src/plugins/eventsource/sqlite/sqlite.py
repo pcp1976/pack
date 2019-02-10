@@ -39,23 +39,38 @@ class EventSourceSqlite(EventSource, Plugin):
             new_config.update(config_thing)
         return new_config
 
+    def command_handler(self, _id, _type, data, metadata, raised_time):
+        event = Event(
+            _id=_id, type=_type, data=data, metadata=metadata, _raised_time=raised_time
+        )
+        print(f"{self.name}: {event.__dict__}")
+
+    def register_command_handler(self):
+        self.pm.hook.eventsource_handler_register(
+            stream_name="command",
+            subscription_name=self.name,
+            event_handler=self.command_handler,
+        )
+
+    def set_table_adapter(self):
+        if self.config_obj["EVENTSOURCE_FILE"] != ":memory:":
+            self.table_adapter = TableAdapter(
+                os.path.join(os.getcwd(), self.config_obj["EVENTSOURCE_FILE"])
+            )
+        else:
+            self.table_adapter = TableAdapter(self.config_obj["EVENTSOURCE_FILE"])
+
     def apply_config(self, config):
         self.config_obj = config
         # TODO apply any relevant settings
-        if self.config_obj["eventsource"]["file"] != ":memory:":
-            self.table_adapter = TableAdapter(
-                os.path.join(os.getcwd(), self.config_obj["eventsource"]["file"])
-            )
-        else:
-            self.table_adapter = TableAdapter(
-                self.config_obj["eventsource"]["file"]
-            )
+        self.set_table_adapter()
         self.table_adapter.create_subscription_table()
+        self.register_command_handler()
 
     @eventsource
     def config_inject(self, config):
         fresh_config = self._config_mung(config)
-        if not fresh_config["eventsource"]["type"] == self.name:
+        if not fresh_config["EVENTSOURCE_TYPE"] == self.name:
             print(f"{self.name} unwanted; die")
             self.pm.unregister(self)
         else:

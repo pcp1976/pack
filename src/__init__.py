@@ -1,23 +1,25 @@
 import sys
 from sys import argv
-import hookspecs
-import plugins
 import pkgutil
 from pluggy import PluginManager
 from api.eventsource import Event
 from time import sleep
 
+# "unused" - lazy instantiation
+import hookspecs
+import plugins
+
+
 pm = PluginManager("pack")
 
 
 def main(args):
-    connect_hooks()
-    link()
-    pm.hook.config_inject(config=pm.hook.broadcast_config())
-    pm.hook.config_item_set(item="eventsource", value={"type": "eventsource_sqlite"})
+    do_boot()
+
+    # all components should now be connected to the event source
     pm.hook.create_subscription(stream_name="geoff", subscription_name="test")
     event = Event()
-    event.metadata = {}
+    event.metadata = {"author": "Paul"}
     event.data = {"hello": "world"}
     event.type = "a test"
     pm.hook.eventsource_handler_register(
@@ -30,15 +32,26 @@ def main(args):
     pm.hook.raise_event(stream_name="geoff", event=event)
 
 
+def do_boot():
+    connect_hooks()
+    link()
+    pm.hook.config_inject(config=pm.hook.broadcast_config())
+    event = Event()
+    event.metadata = {"author": "Paul"}
+    event.data = {}
+    event.type = "config_update"
+    pm.hook.raise_event(stream_name="command", event=event)
+
+
 def simple_func(_id, _type, data, metadata, raised_time):
     event = Event(
-        _id=_id,
-        type=_type,
-        data=data,
-        metadata=metadata,
-        _raised_time=raised_time
+        _id=_id, type=_type, data=data, metadata=metadata, _raised_time=raised_time
     )
     print(f"simple_func: {event.__dict__}")
+
+
+def parse_args(args):
+    pass
 
 
 def connect_hooks():

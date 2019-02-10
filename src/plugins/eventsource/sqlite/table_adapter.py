@@ -51,10 +51,14 @@ class TableAdapter:
         cur = self.con.cursor()
         self.con.create_function(f_name, 5, event_handler)
         try:
-            cur.execute("".join([
-                f"CREATE TRIGGER {f_name} AFTER INSERT ON stream_{stream_name} ",
-                f"BEGIN SELECT {f_name}(NEW.id, NEW.type, NEW.data, NEW.metadata, NEW.raised_time); END;"
-            ]))
+            cur.execute(
+                "".join(
+                    [
+                        f"CREATE TRIGGER {f_name} AFTER INSERT ON stream_{stream_name} ",
+                        f"BEGIN SELECT {f_name}(NEW.id, NEW.type, NEW.data, NEW.metadata, NEW.raised_time); END;",
+                    ]
+                )
+            )
             self.con.commit()
         except OperationalError as e:
             print(e)

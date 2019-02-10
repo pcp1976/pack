@@ -34,17 +34,18 @@ class EventSourceMemory(EventSource, Plugin):
             new_config.update(config_thing)
         return new_config
 
+    def command_handler(self, event):
+        raise NotImplementedError(event)
+
     def apply_config(self, config):
         self.config_obj = config
-        # TODO apply any relevant settings
 
     @eventsource
     def config_inject(self, config):
         fresh_config = self._config_mung(config)
-        if not fresh_config["eventsource"]["type"] == self.name:
+        if not fresh_config["EVENTSOURCE_TYPE"] == self.name:
             print(f"{self.name} unwanted; die")
             self.pm.unregister(self)
-            # TODO object should be shunted out of scope and be GC'd
         else:
             self.apply_config(fresh_config)
 
