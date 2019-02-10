@@ -24,9 +24,9 @@ def main(args):
         stream_name="geoff", subscription_name="test", event_handler=simple_func
     )
     pm.hook.raise_event(stream_name="geoff", event=event)
-    sleep(2)
+    sleep(1)
     pm.hook.raise_event(stream_name="geoff", event=event)
-    sleep(2)
+    sleep(1)
     pm.hook.raise_event(stream_name="geoff", event=event)
 
 

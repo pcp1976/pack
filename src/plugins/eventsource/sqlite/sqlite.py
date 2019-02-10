@@ -42,9 +42,14 @@ class EventSourceSqlite(EventSource, Plugin):
     def apply_config(self, config):
         self.config_obj = config
         # TODO apply any relevant settings
-        self.table_adapter = TableAdapter(
-            os.path.join(os.getcwd(), self.config_obj["eventsource"]["file"])
-        )
+        if self.config_obj["eventsource"]["file"] != ":memory:":
+            self.table_adapter = TableAdapter(
+                os.path.join(os.getcwd(), self.config_obj["eventsource"]["file"])
+            )
+        else:
+            self.table_adapter = TableAdapter(
+                self.config_obj["eventsource"]["file"]
+            )
         self.table_adapter.create_subscription_table()
 
     @eventsource

@@ -19,39 +19,6 @@ the stream name, the subscription name, and possibly the function name to avoid 
 """
 
 
-def hello(event_type, event_data, event_metada):
-    print(f"Hello {event_type}, {event_data}, {event_metada}")
-
-
-# # con = sqlite3.connect(":memory:") can use memory
-# con = sqlite3.connect("test.db")
-# con.create_function("hello", 3, hello)  # function alias, number of args, function
-# cur = con.cursor()
-# # only if no db
-# cur.execute(
-#     "".join(
-#         [
-#             "CREATE TABLE t ",
-#             "(event_id INTEGER PRIMARY KEY AUTOINCREMENT, ",
-#             "event_type TEXT NOT NULL, ",
-#             "event_data TEXT NOT NULL, ",
-#             "event_metadata text NOT NULL);",
-#         ]
-#     )
-# )
-# # only if !exists(TRIGGER)
-# cur.execute(
-#     "CREATE TRIGGER xx AFTER INSERT ON t BEGIN SELECT hello(NEW.event_type, NEW.event_data, NEW.event_metadata); END;"
-# )
-# # can add multiple triggers on table
-# cur.execute(
-#     "CREATE TRIGGER yy AFTER INSERT ON t BEGIN SELECT hello(NEW.event_type, NEW.event_data, NEW.event_metadata); END;"
-# )
-# cur.execute(
-#     "INSERT INTO t (event_type, event_data, event_metadata) VALUES('{abc}', '{123}', '{£$%}')"
-# )
-
-
 class TableAdapter:
     def __init__(self, file_path):
         self.con = sqlite3.connect(file_path)
@@ -117,15 +84,17 @@ class TableAdapter:
     def append_event(self, stream_name, event: Event):
         cur = self.con.cursor()
         # raised_time set here - when the event is raised onto its destination stream
+        # uuid based on streram and time of event to prevent collisions
+        raised_time = datetime.datetime.now()
         sql_str = "".join(
             [
                 f"INSERT INTO {self.stream_name(stream_name)} (id, type, data, metadata, raised_time) ",
                 f"VALUES (",
-                f"'{str(uuid.uuid4())}', "
+                f"'{str(uuid.uuid5(uuid.NAMESPACE_URL, f'{stream_name}_{raised_time}'))}', "
                 f"'{event.type}', ",
                 f"'{json.dumps(event.data)}', ",
                 f"'{json.dumps(event.metadata)}', ",
-                f"'{datetime.datetime.now()}');",
+                f"'{raised_time}');",
             ]
         )
         cur.execute(sql_str)
