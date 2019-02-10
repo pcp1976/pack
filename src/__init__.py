@@ -4,6 +4,7 @@ import hookspecs
 import plugins
 import pkgutil
 from pluggy import PluginManager
+from api.eventsource import Event
 
 pm = PluginManager("pack")
 
@@ -12,7 +13,20 @@ def main(args):
     connect_hooks()
     link()
     pm.hook.config_inject(config=pm.hook.broadcast_config())
-    pm.hook.config_item_set(item="eventsource", value={"type": "eventsource_memory"})
+    pm.hook.config_item_set(item="eventsource", value={"type": "eventsource_sqlite"})
+    pm.hook.create_subscription(stream_name="geoff", subscription_name="test")
+    event = Event()
+    event.metadata = {}
+    event.data = {"hello": "world"}
+    event.type = "a test"
+    pm.hook.eventsource_handler_register(
+        stream_name="geoff", subscription_name="test", event_handler=simple_func
+    )
+    pm.hook.raise_event(stream_name="geoff", event=event)
+
+
+def simple_func(a, b, c, d):
+    print(f"falsey: {a} {b} {c} {d}")
 
 
 def connect_hooks():

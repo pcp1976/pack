@@ -1,70 +1,30 @@
 from pluggy import HookimplMarker, PluginManager
 from configobj import ConfigObj
-import sqlite3
+from sqlite3 import OperationalError
+import os
+
+from api.plugin import Plugin
+from api.eventsource import Event, EventSource
+from plugins.eventsource.sqlite.table_adapter import TableAdapter
 
 eventsource = HookimplMarker("pack")
 
 
-def hello(event_type, event_data, event_metada):
-    print(f"Hello {event_type}, {event_data}, {event_metada}")
-
-
-# TODO
-"""
-Triggers are persistent - need to choose behaviour on startup
-- probably should remove as potentially using different composition of app on restart
-Need to choose how to map tables and callbacks to streams, subscriptions, and event handlers
-
-drop trigger https://www.sqlite.org/lang_droptrigger.html
-select triggers https://stackoverflow.com/questions/18655057/how-can-i-list-all-the-triggers-of-a-database-in-sqlite
-
-looks as if triggers are stored in a central location, so the name will need to be a combination of
-the stream name, the subscription name, and possibly the function name to avoid collisions
-"""
-# # con = sqlite3.connect(":memory:") can use memory
-# con = sqlite3.connect("test.db")
-# con.create_function("hello", 3, hello)  # function alias, number of args, function
-# cur = con.cursor()
-# # only if no db
-# cur.execute(
-#     "".join(
-#         [
-#             "CREATE TABLE t ",
-#             "(event_id INTEGER PRIMARY KEY AUTOINCREMENT, ",
-#             "event_type TEXT NOT NULL, ",
-#             "event_data TEXT NOT NULL, ",
-#             "event_metadata text NOT NULL);",
-#         ]
-#     )
-# )
-# # only if !exists(TRIGGER)
-# cur.execute(
-#     "CREATE TRIGGER xx AFTER INSERT ON t BEGIN SELECT hello(NEW.event_type, NEW.event_data, NEW.event_metadata); END;"
-# )
-# # can add multiple triggers on table
-# cur.execute(
-#     "CREATE TRIGGER yy AFTER INSERT ON t BEGIN SELECT hello(NEW.event_type, NEW.event_data, NEW.event_metadata); END;"
-# )
-# cur.execute(
-#     "INSERT INTO t (event_type, event_data, event_metadata) VALUES('{abc}', '{123}', '{£$%}')"
-# )
-
-
-class EventSourceSqlite:
+class EventSourceSqlite(EventSource, Plugin):
     """
     Fairly simple persistent event source using sqlite3
     """
 
-    name = "eventsource_sqlite"
-
     def __init__(self):
+        super().__init__()
+        self.name = "eventsource_sqlite"
         self.streams = {}
         self.subscriptions = {}
-        self.config_obj: ConfigObj = None
-        self.pm: PluginManager = None
+        self.table_adapter: TableAdapter = None
 
     @eventsource
     def plugin_pm_link(self, pm: PluginManager):
+        print(self.create_subscription.__qualname__)
         self.pm = pm
 
     def _config_mung(self, config) -> dict:
@@ -82,28 +42,40 @@ class EventSourceSqlite:
     def apply_config(self, config):
         self.config_obj = config
         # TODO apply any relevant settings
+        self.table_adapter = TableAdapter(
+            os.path.join(os.getcwd(), self.config_obj["eventsource"]["file"])
+        )
+        self.table_adapter.create_subscription_table()
 
     @eventsource
     def config_inject(self, config):
         fresh_config = self._config_mung(config)
         if not fresh_config["eventsource"]["type"] == self.name:
             print(f"{self.name} unwanted; die")
-            # TODO object should be shunted out of scope and be GC'd
+            self.pm.unregister(self)
         else:
             self.apply_config(fresh_config)
 
     @eventsource
-    def register_event_handler(self, stream_name, subscription_name, event_handler):
+    def eventsource_handler_register(
+        self, stream_name, subscription_name, event_handler
+    ):
         """
         :param stream_name: name of the stream the event_handler receives events from
         :param subscription_name: identifier for the subscription
         :param event_handler: function which will receive events from the stream
         :return: None
         """
+        # need to keep a reference to the stream (table) subscription, and event_handler,
+        # in order to remove them at a later time if necessary
+        # stream and subscription potentially don't yet exist
+        self.create_subscription(stream_name, subscription_name)
         if event_handler not in self.subscriptions[stream_name][subscription_name]:
+            self.table_adapter.register_handler(
+                stream_name, subscription_name, event_handler
+            )
             self.subscriptions[stream_name][subscription_name].append(event_handler)
-        for event in self.streams[stream_name]:
-            event_handler(event)
+        # TODO replay past events to new subscriber
 
     @eventsource
     def deregister_event_handler(self, event_handler):
@@ -126,38 +98,28 @@ class EventSourceSqlite:
         if subscription_name in self.subscriptions[stream_name]:
             self.subscriptions[stream_name].remove(subscription_name)
 
+    def create_stream(self, stream_name):
+        if stream_name not in self.streams:
+            try:
+                self.table_adapter.create_stream_table(stream_name)
+            except OperationalError as e:
+                if str(e).find("already exists") > 0:
+                    print(f"stream {stream_name} already exists")
+            self.streams.update({stream_name: []})
+
     @eventsource
     def create_subscription(self, stream_name, subscription_name):
-
-        if stream_name not in self.streams:
-            self.streams.update({stream_name: []})
         if stream_name not in self.subscriptions:
+            self.create_stream(stream_name)
             self.subscriptions.update({stream_name: {}})
         if subscription_name not in self.subscriptions[stream_name]:
+            self.table_adapter.create_subscription(stream_name, subscription_name)
             self.subscriptions[stream_name].update({subscription_name: []})
 
     @eventsource
-    def raise_event(
-        self, stream_name: str, event_type: str, event_data: dict, event_metadata: dict
-    ):
-        if stream_name not in self.streams:
-            self.streams[stream_name] = []
-        event = {
-            "event_type": event_type,
-            "event_data": event_data,
-            "event_metadata": event_metadata,
-        }
-        self.streams[stream_name].append(event)
-        try:
-            for sub in self.subscriptions[stream_name]:
-                for callback in self.subscriptions[stream_name][sub]:
-                    callback(
-                        event_type=event_type,
-                        event_data=event_data,
-                        event_metadata=event_metadata,
-                    )
-        except KeyError:
-            pass
+    def raise_event(self, stream_name: str, event: Event):
+        self.create_stream(stream_name)
+        self.table_adapter.append_event(stream_name, event)
 
     @eventsource
     def start_event_streams(self) -> bool:

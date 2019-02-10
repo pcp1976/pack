@@ -1,21 +1,22 @@
 from pluggy import HookimplMarker, PluginManager
 from configobj import ConfigObj
 
+from api.eventsource import Event, EventSource
+from api.plugin import Plugin
+
 eventsource = HookimplMarker("pack")
 
 
-class EventSourceMemory:
+class EventSourceMemory(EventSource, Plugin):
     """
     Simple, volatile event source using dicts
     """
 
-    name = "eventsource_memory"
-
     def __init__(self):
+        super().__init__()
+        self.name = "eventsource_memory"
         self.streams = {}
         self.subscriptions = {}
-        self.config_obj: ConfigObj = None
-        self.pm: PluginManager = None
 
     @eventsource
     def plugin_pm_link(self, pm: PluginManager):
@@ -41,7 +42,8 @@ class EventSourceMemory:
     def config_inject(self, config):
         fresh_config = self._config_mung(config)
         if not fresh_config["eventsource"]["type"] == self.name:
-            print("unwanted; die")
+            print(f"{self.name} unwanted; die")
+            self.pm.unregister(self)
             # TODO object should be shunted out of scope and be GC'd
         else:
             self.apply_config(fresh_config)
@@ -91,25 +93,14 @@ class EventSourceMemory:
             self.subscriptions[stream_name].update({subscription_name: []})
 
     @eventsource
-    def raise_event(
-        self, stream_name: str, event_type: str, event_data: dict, event_metadata: dict
-    ):
+    def raise_event(self, stream_name: str, event: Event):
         if stream_name not in self.streams:
             self.streams[stream_name] = []
-        event = {
-            "event_type": event_type,
-            "event_data": event_data,
-            "event_metadata": event_metadata,
-        }
         self.streams[stream_name].append(event)
         try:
             for sub in self.subscriptions[stream_name]:
                 for callback in self.subscriptions[stream_name][sub]:
-                    callback(
-                        event_type=event_type,
-                        event_data=event_data,
-                        event_metadata=event_metadata,
-                    )
+                    callback(event)
         except KeyError:
             pass
 
